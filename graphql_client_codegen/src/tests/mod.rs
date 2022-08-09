@@ -114,3 +114,40 @@ fn fragments_other_variant_false_should_not_generate_unknown_other_variant() {
         };
     }
 }
+
+#[test]
+fn query_with_enum_variant_as_default_argument_should_not_generate_as_string() {
+    let query_string = include_str!("star_wars_query_default_arg.graphql");
+    let query = graphql_parser::parse_query(query_string).expect("parse query");
+    let schema = graphql_parser::parse_schema(include_str!("star_wars_schema.graphql"))
+        .expect("Parse github schema");
+    let schema = Schema::from(schema);
+
+    let options = GraphQLClientCodegenOptions::new(CodegenMode::Cli);
+
+    let query = crate::query::resolve(&schema, &query).unwrap();
+
+    for (_id, operation) in query.operations() {
+        let generated_tokens = generated_module::GeneratedModule {
+            query_string,
+            schema: &schema,
+            operation: &operation.name,
+            resolved_query: &query,
+            options: &options,
+        }
+            .to_token_stream()
+            .unwrap();
+        let generated_code = generated_tokens.to_string();
+        let r: syn::parse::Result<proc_macro2::TokenStream> = syn::parse2(generated_tokens);
+        match r {
+            Ok(_) => {
+                // Rust keywords should be escaped / renamed now
+                assert!(!generated_code.contains(r#"default_episodeForHero () -> Episode { "EMPIRE" }"#), "old behaviour");
+                assert!(generated_code.contains(r#"default_episodeForHero () -> Episode { Episode::EMPIRE }"#));
+            }
+            Err(e) => {
+                panic!("Error: {}\n Generated content: {}\n", e, &generated_code);
+            }
+        }
+    }
+}

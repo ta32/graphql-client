@@ -1,0 +1,6 @@
+query StarWarsFavouriteHeroQuery($episodeForHero: Episode! = EMPIRE ) {
+  hero(episode: $episodeForHero) {
+    name
+    __typename
+  }
+}
